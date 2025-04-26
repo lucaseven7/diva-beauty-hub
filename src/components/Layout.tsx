@@ -39,7 +39,14 @@ export const Layout = ({ children, title }) => {
     <div className="min-h-screen bg-gray-50">
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <h1 className="text-xl font-playfair font-semibold">{title}</h1>
+          <div className="flex items-center">
+            <img 
+                src="/nails-logo.png" 
+                alt="Nails by Bae Logo" 
+                className="h-20 w-18 mr-3 object-contain rounded-full shadow-sm" 
+              />
+            <h1 className="text-xl font-playfair font-semibold">{title}</h1>
+          </div>
           
           <div className="flex items-center">
             <Popover>
