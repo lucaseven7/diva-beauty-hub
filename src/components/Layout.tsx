@@ -16,7 +16,7 @@ interface LayoutProps {
   title?: string;
 }
 
-export const Layout = ({ title, children }) => {
+export const Layout = ({ children, title }) => {
   const [notifications, setNotifications] = useState([]);
   
   useEffect(() => {
