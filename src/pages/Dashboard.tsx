@@ -111,7 +111,7 @@ const Dashboard = () => {
 
   return (
     <Layout title="Dashboard">
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6 animate-fade-in pb-[120px] md:pb-0">
         {/* Statistiche */}
         <div className="grid grid-cols-2 gap-4">
           <Card>
