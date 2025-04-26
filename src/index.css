@@ -107,5 +107,8 @@
 }
 
 .beauty-gradient {
+  body {
+  padding-bottom: 80px; /* Aggiusta il valore se serve più spazio */
+}
   @apply bg-gradient-to-r from-beauty-pink to-beauty-purple text-white;
 }
