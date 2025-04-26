@@ -1,4 +1,12 @@
 import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+
+const BottomNavigation = () => {
+  const location = useLocation();
+  const path = location.pathname;
+
+  const isNewAppointmentPage = path === "/appointments/new";
+  import { useEffect } from "react";
 import { Home, Calendar, Users, Image, BarChart3 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -16,22 +24,31 @@ const BottomNavigation = () => {
 useEffect(() => {
   const nav = document.getElementById("bottom-nav");
   let lastScrollY = window.scrollY;
+  const isNewAppointmentPage = path === "/appointments/new";
 
   const handleScroll = () => {
-    if (!nav) return;
+    if (!nav || isNewAppointmentPage) return;
 
     if (window.scrollY > lastScrollY) {
-      nav.style.transform = "translateY(100%)"; // Nascondi
+      nav.style.transform = "translateY(100%)"; // scroll down → hide
     } else {
-      nav.style.transform = "translateY(0)"; // Mostra
+      nav.style.transform = "translateY(0)"; // scroll up → show
     }
 
     lastScrollY = window.scrollY;
   };
 
+  if (nav) {
+    if (isNewAppointmentPage) {
+      nav.style.transform = "translateX(-100%)"; // ritira a sinistra
+    } else {
+      nav.style.transform = "translateY(0)"; // posizione normale
+    }
+  }
+
   window.addEventListener("scroll", handleScroll);
   return () => window.removeEventListener("scroll", handleScroll);
-}, []);
+}, [path]);
   return (
    <div
   id="bottom-nav"
