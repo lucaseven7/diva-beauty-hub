@@ -1,9 +1,8 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { StatsCard } from "@/components/StatsCard";
 import { Calendar, Euro, Users, TrendingUp } from "lucide-react";
-import { mockMonthlyStats, mockAppointments } from "@/data/mockData";
 import { Card } from "@/components/ui/card";
 import {
   Select,
@@ -23,28 +22,171 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import { getAppointments, getClients } from "@/services/localStorage";
+import { format, startOfMonth, endOfMonth, isWithinInterval, subMonths } from "date-fns";
+import { it } from "date-fns/locale";
 
 const COLORS = ["#9b87f5", "#D6BCFA", "#FFDEE2", "#FDE1D3", "#F1F0FB"];
 
 const Stats = () => {
   const [selectedPeriod, setSelectedPeriod] = useState("month");
+  const [currentMonthStats, setCurrentMonthStats] = useState({
+    revenue: 0,
+    appointments: 0,
+    newClients: 0,
+    averageServicePrice: 0
+  });
+  const [previousMonthStats, setPreviousMonthStats] = useState({
+    revenue: 0,
+    appointments: 0,
+    newClients: 0,
+    averageServicePrice: 0
+  });
+  const [revenueData, setRevenueData] = useState([]);
+  const [servicesData, setServicesData] = useState([]);
 
-  const revenueGrowth =
-    ((mockMonthlyStats.currentMonth.revenue - mockMonthlyStats.previousMonth.revenue) /
-      mockMonthlyStats.previousMonth.revenue) *
-    100;
+  useEffect(() => {
+    // Ottieni tutti gli appuntamenti e clienti
+    const allAppointments = getAppointments();
+    const allClients = getClients();
+    
+    // Date per il mese corrente
+    const today = new Date();
+    const firstDayOfCurrentMonth = startOfMonth(today);
+    const lastDayOfCurrentMonth = endOfMonth(today);
+    
+    // Date per il mese precedente
+    const firstDayOfPreviousMonth = startOfMonth(subMonths(today, 1));
+    const lastDayOfPreviousMonth = endOfMonth(subMonths(today, 1));
+    
+    // Filtra gli appuntamenti del mese corrente
+    const currentMonthAppointments = allAppointments.filter(appt => {
+      if (!appt.date) return false;
+      const apptDate = new Date(appt.date);
+      return isWithinInterval(apptDate, { 
+        start: firstDayOfCurrentMonth, 
+        end: lastDayOfCurrentMonth 
+      });
+    });
+    
+    // Filtra gli appuntamenti del mese precedente
+    const previousMonthAppointments = allAppointments.filter(appt => {
+      if (!appt.date) return false;
+      const apptDate = new Date(appt.date);
+      return isWithinInterval(apptDate, { 
+        start: firstDayOfPreviousMonth, 
+        end: lastDayOfPreviousMonth 
+      });
+    });
+    
+    // Calcola le statistiche del mese corrente
+    const currentRevenue = currentMonthAppointments
+      .filter(appt => appt.status === "completed")
+      .reduce((sum, appt) => sum + (appt.price || 0), 0);
+    const currentAppointmentsCount = currentMonthAppointments.length;
+    const currentAveragePrice = currentAppointmentsCount > 0 
+      ? Math.round(currentRevenue / currentAppointmentsCount) 
+      : 0;
+    
+    // Calcola le statistiche del mese precedente
+    const previousRevenue = previousMonthAppointments
+      .filter(appt => appt.status === "completed")
+      .reduce((sum, appt) => sum + (appt.price || 0), 0);
+    const previousAppointmentsCount = previousMonthAppointments.length;
+    const previousAveragePrice = previousAppointmentsCount > 0 
+      ? Math.round(previousRevenue / previousAppointmentsCount) 
+      : 0;
+    
+    // Ottieni i clienti unici di questo mese
+    const currentMonthClientIds = [...new Set(currentMonthAppointments.map(appt => appt.clientId))];
+    const previousMonthClientIds = [...new Set(previousMonthAppointments.map(appt => appt.clientId))];
+    
+    setCurrentMonthStats({
+      revenue: currentRevenue,
+      appointments: currentAppointmentsCount,
+      newClients: currentMonthClientIds.length,
+      averageServicePrice: currentAveragePrice
+    });
+    
+    setPreviousMonthStats({
+      revenue: previousRevenue,
+      appointments: previousAppointmentsCount,
+      newClients: previousMonthClientIds.length,
+      averageServicePrice: previousAveragePrice
+    });
+    
+    // Prepara i dati per il grafico delle entrate mensili
+    const monthlyRevenue = {};
+    
+    // Inizializza gli ultimi 4 mesi
+    for (let i = 3; i >= 0; i--) {
+      const month = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const monthName = format(month, 'MMM', { locale: it });
+      monthlyRevenue[monthName] = 0;
+    }
+    
+    // Calcola le entrate per ogni mese
+    allAppointments.forEach(appt => {
+      if (!appt.date || appt.status !== "completed") return;
+      
+      const apptDate = new Date(appt.date);
+      const monthName = format(apptDate, 'MMM', { locale: it });
+      
+      if (monthlyRevenue[monthName] !== undefined) {
+        monthlyRevenue[monthName] += (appt.price || 0);
+      }
+    });
+    
+    // Converti in formato per il grafico
+    const revenueChartData = Object.keys(monthlyRevenue).map(month => ({
+      name: month,
+      value: monthlyRevenue[month]
+    }));
+    
+    setRevenueData(revenueChartData);
+    
+    // Prepara i dati per il grafico dei servizi
+    const services = {};
+    allAppointments.forEach(appt => {
+      if (!appt.service) return;
+      
+      if (!services[appt.service]) {
+        services[appt.service] = 0;
+      }
+      services[appt.service]++;
+    });
+    
+    const servicesChartData = Object.keys(services).map(service => ({
+      name: service,
+      value: services[service]
+    }));
+    
+    setServicesData(servicesChartData);
+  }, [selectedPeriod]);
 
-  const appointmentsGrowth =
-    ((mockMonthlyStats.currentMonth.appointments -
-      mockMonthlyStats.previousMonth.appointments) /
-      mockMonthlyStats.previousMonth.appointments) *
-    100;
-
-  const clientsGrowth =
-    ((mockMonthlyStats.currentMonth.newClients -
-      mockMonthlyStats.previousMonth.newClients) /
-      mockMonthlyStats.previousMonth.newClients) *
-    100;
+  // Calcola le percentuali di crescita
+  const revenueGrowth = previousMonthStats.revenue !== 0 
+    ? ((currentMonthStats.revenue - previousMonthStats.revenue) /
+       previousMonthStats.revenue) * 100
+    : 0;
+  
+  const appointmentsGrowth = previousMonthStats.appointments !== 0
+    ? ((currentMonthStats.appointments -
+       previousMonthStats.appointments) /
+       previousMonthStats.appointments) * 100
+    : 0;
+  
+  const clientsGrowth = previousMonthStats.newClients !== 0
+    ? ((currentMonthStats.newClients -
+       previousMonthStats.newClients) /
+       previousMonthStats.newClients) * 100
+    : 0;
+    
+  const priceGrowth = previousMonthStats.averageServicePrice !== 0
+    ? ((currentMonthStats.averageServicePrice -
+       previousMonthStats.averageServicePrice) /
+       previousMonthStats.averageServicePrice) * 100
+    : 0;
 
   return (
     <Layout title="Statistiche">
@@ -69,7 +211,7 @@ const Stats = () => {
         <div className="grid grid-cols-2 gap-3">
           <StatsCard
             title="Entrate"
-            value={`${mockMonthlyStats.currentMonth.revenue}€`}
+            value={`${currentMonthStats.revenue}€`}
             icon={<Euro className="h-4 w-4 text-beauty-purple" />}
             trend={{
               value: Math.round(revenueGrowth),
@@ -78,7 +220,7 @@ const Stats = () => {
           />
           <StatsCard
             title="Appuntamenti"
-            value={mockMonthlyStats.currentMonth.appointments}
+            value={currentMonthStats.appointments}
             icon={<Calendar className="h-4 w-4 text-beauty-purple" />}
             trend={{
               value: Math.round(appointmentsGrowth),
@@ -87,7 +229,7 @@ const Stats = () => {
           />
           <StatsCard
             title="Nuovi clienti"
-            value={mockMonthlyStats.currentMonth.newClients}
+            value={currentMonthStats.newClients}
             icon={<Users className="h-4 w-4 text-beauty-purple" />}
             trend={{
               value: Math.round(clientsGrowth),
@@ -96,18 +238,11 @@ const Stats = () => {
           />
           <StatsCard
             title="Prezzo medio"
-            value={`${mockMonthlyStats.currentMonth.averageServicePrice}€`}
+            value={`${currentMonthStats.averageServicePrice}€`}
             icon={<TrendingUp className="h-4 w-4 text-beauty-purple" />}
             trend={{
-              value: Math.round(
-                ((mockMonthlyStats.currentMonth.averageServicePrice -
-                  mockMonthlyStats.previousMonth.averageServicePrice) /
-                  mockMonthlyStats.previousMonth.averageServicePrice) *
-                  100
-              ),
-              isPositive:
-                mockMonthlyStats.currentMonth.averageServicePrice >
-                mockMonthlyStats.previousMonth.averageServicePrice,
+              value: Math.round(priceGrowth),
+              isPositive: priceGrowth > 0,
             }}
           />
         </div>
@@ -117,7 +252,7 @@ const Stats = () => {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={mockMonthlyStats.revenueData}
+                data={revenueData}
                 margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
               >
                 <XAxis dataKey="name" axisLine={false} tickLine={false} />
@@ -137,7 +272,7 @@ const Stats = () => {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={mockMonthlyStats.servicesData}
+                  data={servicesData}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -146,7 +281,7 @@ const Stats = () => {
                   dataKey="value"
                   label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
-                  {mockMonthlyStats.servicesData.map((entry, index) => (
+                  {servicesData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>

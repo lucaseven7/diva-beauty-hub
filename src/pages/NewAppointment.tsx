@@ -1,10 +1,20 @@
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { services } from "@/data/services";
+import { timeSlots, getAvailableTimeSlots } from "@/data/timeSlots";
 import {
   Select,
   SelectContent,
@@ -12,32 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { mockClients } from "@/data/mockData";
-import { format } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-const services = [
-  { id: "s1", name: "Manicure classica", price: 25 },
-  { id: "s2", name: "Smalto semipermanente", price: 35 },
-  { id: "s3", name: "Ricostruzione unghie", price: 50 },
-  { id: "s4", name: "Pedicure", price: 30 },
-  { id: "s5", name: "Nail art", price: 15 },
-  { id: "s6", name: "Ceretta", price: 25 },
-  { id: "s7", name: "Trattamento viso", price: 40 },
-];
-
-const timeSlots = [
-  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", 
-  "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", 
-  "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00"
-];
+import { getClients, getAppointments, addAppointment, updateAppointment } from "@/services/localStorage";
 
 const NewAppointment = () => {
+  const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -49,46 +37,126 @@ const NewAppointment = () => {
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [newClientPhone, setNewClientPhone] = useState("");
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [appointmentId, setAppointmentId] = useState("");
+  const [clients, setClients] = useState([]);
+  const [availableTimeSlots, setAvailableTimeSlots] = useState(timeSlots);
+  const [appointments, setAppointments] = useState([]);
 
-  const handleServiceChange = (value: string) => {
-    setSelectedService(value);
-    const service = services.find(s => s.id === value);
-    if (service) {
-      setPrice(service.price.toString());
+  useEffect(() => {
+    // Carica i clienti dal localStorage
+    const storedClients = getClients();
+    setClients(storedClients);
+    
+    // Verifica se siamo in modalità modifica
+    if (id) {
+      setIsEditMode(true);
+      setAppointmentId(id);
+      
+      // Carica i dati dell'appuntamento esistente
+      const storedAppointments = getAppointments();
+      const appointmentToEdit = storedAppointments.find(appt => appt.id === id);
+      
+      if (appointmentToEdit) {
+        // Imposta i valori del form con i dati dell'appuntamento
+        if (appointmentToEdit.date) {
+          setDate(new Date(appointmentToEdit.date));
+        }
+        setSelectedClient(appointmentToEdit.clientId);
+        setSelectedTime(appointmentToEdit.time);
+        setPrice(appointmentToEdit.price.toString());
+        setNotes(appointmentToEdit.notes || "");
+        
+        // Trova il servizio corrispondente
+        const service = services.find(s => s.name === appointmentToEdit.service);
+        if (service) {
+          setSelectedService(service.id);
+        }
+      } else {
+        // Appuntamento non trovato
+        toast({
+          title: "Errore",
+          description: "Appuntamento non trovato",
+          variant: "destructive"
+        });
+        navigate("/appointments");
+      }
     }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  }, [id, navigate, toast]);
+  
+  const handleSubmit = (e) => {
     e.preventDefault();
     
-    // Validation
-    if (!date || !selectedTime || (!selectedClient && !newClientName)) {
+    if (!date || !selectedTime || !selectedClient || !selectedService || !price) {
       toast({
-        title: "Campi obbligatori mancanti",
-        description: "Compila tutti i campi richiesti",
+        title: "Errore",
+        description: "Compila tutti i campi obbligatori",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Trova il cliente selezionato
+    const client = clients.find(c => c.id === selectedClient);
+    
+    if (!client) {
+      toast({
+        title: "Errore",
+        description: "Seleziona un cliente valido",
         variant: "destructive"
       });
       return;
     }
     
-    // In a real app, here we would save the appointment to a database
-    toast({
-      title: "Appuntamento creato!",
-      description: "L'appuntamento è stato aggiunto con successo"
-    });
+    // Trova il servizio selezionato
+    const service = services.find(s => s.id === selectedService);
+    
+    // Crea o aggiorna l'appuntamento
+    const appointmentData = {
+      id: isEditMode ? appointmentId : `appt-${Date.now()}`,
+      date: date ? format(date, "yyyy-MM-dd") : "",
+      time: selectedTime,
+      clientId: client.id,
+      clientName: client.name,
+      clientPhone: client.phone,
+      clientAvatar: client.avatar,
+      service: service ? service.name : "",
+      price: parseInt(price),
+      notes: notes,
+      status: "scheduled"
+    };
+    
+    // Salva l'appuntamento nel localStorage
+    if (isEditMode) {
+      // Aggiorna l'appuntamento esistente
+      updateAppointment(appointmentData);
+      
+      toast({
+        title: "Appuntamento aggiornato",
+        description: "L'appuntamento è stato aggiornato con successo",
+      });
+    } else {
+      // Crea un nuovo appuntamento
+      addAppointment(appointmentData);
+      
+      toast({
+        title: "Appuntamento creato",
+        description: "L'appuntamento è stato creato con successo",
+      });
+    }
     
     navigate("/appointments");
   };
 
   return (
-    <Layout title="Nuovo Appuntamento">
+    <Layout title={isEditMode ? "Modifica Appuntamento" : "Nuovo Appuntamento"}>
       <div className="space-y-6 animate-fade-in">
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-3">
             <h2 className="text-lg font-medium">Data e Ora</h2>
             
             <div className="space-y-2">
-              <Label>Data</Label>
+              <Label htmlFor="date">Data *</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -99,7 +167,11 @@ const NewAppointment = () => {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date ? format(date, "PPP") : <span>Seleziona una data</span>}
+                    {date ? (
+                      format(date, "PPP", { locale: it })
+                    ) : (
+                      <span>Seleziona una data</span>
+                    )}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -108,84 +180,69 @@ const NewAppointment = () => {
                     selected={date}
                     onSelect={setDate}
                     initialFocus
-                    className={cn("p-3 pointer-events-auto")}
+                    locale={it}
                   />
                 </PopoverContent>
               </Popover>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="time">Ora</Label>
+              <Label htmlFor="time">Ora *</Label>
               <Select value={selectedTime} onValueChange={setSelectedTime}>
-                <SelectTrigger id="time">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleziona orario" />
                 </SelectTrigger>
                 <SelectContent>
-                  {timeSlots.map((time) => (
+                  {availableTimeSlots.map((time) => (
                     <SelectItem key={time} value={time}>
                       {time}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {availableTimeSlots.length === 0 && date && (
+                <p className="text-sm text-red-500 mt-1">
+                  Non ci sono orari disponibili per questa data. Seleziona un'altra data.
+                </p>
+              )}
             </div>
           </div>
-
+          
           <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-medium">Cliente</h2>
-              <Button 
-                type="button" 
-                variant="ghost" 
-                size="sm"
-                onClick={() => setShowNewClientForm(!showNewClientForm)}
-              >
-                {showNewClientForm ? "Seleziona esistente" : "Nuovo cliente"}
-              </Button>
-            </div>
+            <h2 className="text-lg font-medium">Cliente</h2>
             
-            {!showNewClientForm ? (
+            <div className="space-y-2">
+              <Label htmlFor="client">Cliente *</Label>
               <Select value={selectedClient} onValueChange={setSelectedClient}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleziona cliente" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockClients.map((client) => (
+                  {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name} - {client.phone}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            ) : (
-              <div className="space-y-2">
-                <div>
-                  <Label htmlFor="newClientName">Nome e Cognome</Label>
-                  <Input
-                    id="newClientName"
-                    value={newClientName}
-                    onChange={(e) => setNewClientName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="newClientPhone">Telefono</Label>
-                  <Input
-                    id="newClientPhone"
-                    value={newClientPhone}
-                    onChange={(e) => setNewClientPhone(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
+              <Button
+                type="button"
+                variant="link"
+                className="p-0 h-auto text-beauty-purple"
+                onClick={() => navigate("/clients/new")}
+              >
+                Nuovo cliente
+              </Button>
+            </div>
           </div>
-
+          
           <div className="space-y-3">
             <h2 className="text-lg font-medium">Servizio</h2>
             
-            <div>
-              <Label htmlFor="service">Tipo di servizio</Label>
-              <Select value={selectedService} onValueChange={handleServiceChange}>
-                <SelectTrigger id="service">
+            <div className="space-y-2">
+              <Label htmlFor="service">Servizio *</Label>
+              <Select value={selectedService} onValueChange={setSelectedService}>
+                <SelectTrigger>
                   <SelectValue placeholder="Seleziona servizio" />
                 </SelectTrigger>
                 <SelectContent>
@@ -198,17 +255,23 @@ const NewAppointment = () => {
               </Select>
             </div>
             
-            <div>
-              <Label htmlFor="price">Prezzo (€)</Label>
+            <div className="space-y-2">
+              <Label htmlFor="price">Prezzo (€) *</Label>
               <Input
                 id="price"
+                type="number"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                type="number"
+                placeholder="0"
               />
+              {selectedService && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Prezzo suggerito: {services.find(s => s.id === selectedService)?.price}€
+                </p>
+              )}
             </div>
             
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="notes">Note</Label>
               <Textarea
                 id="notes"
@@ -225,7 +288,7 @@ const NewAppointment = () => {
               type="submit" 
               className="w-full bg-beauty-purple hover:bg-beauty-purple/90"
             >
-              Crea Appuntamento
+              {isEditMode ? "Aggiorna Appuntamento" : "Crea Appuntamento"}
             </Button>
           </div>
         </form>

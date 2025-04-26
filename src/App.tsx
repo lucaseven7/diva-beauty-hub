@@ -13,6 +13,7 @@ import ClientDetail from "./pages/ClientDetail";
 import Gallery from "./pages/Gallery";
 import Stats from "./pages/Stats";
 import NotFound from "./pages/NotFound";
+import NewClient from "./pages/NewClient";
 
 const queryClient = new QueryClient();
 
@@ -27,7 +28,9 @@ const App = () => (
           <Route path="/appointments" element={<Appointments />} />
           <Route path="/appointments/new" element={<NewAppointment />} />
           <Route path="/appointments/:id" element={<AppointmentDetail />} />
+          <Route path="/appointments/edit/:id" element={<NewAppointment />} />
           <Route path="/clients" element={<Clients />} />
+          <Route path="/clients/new" element={<NewClient />} />
           <Route path="/clients/:id" element={<ClientDetail />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/stats" element={<Stats />} />

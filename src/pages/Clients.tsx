@@ -1,20 +1,26 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { Input } from "@/components/ui/input";
 import { ClientCard } from "@/components/ClientCard";
 import { Button } from "@/components/ui/button";
-import { mockClients } from "@/data/mockData";
 import { Link } from "react-router-dom";
 import { Search, UserPlus } from "lucide-react";
+import { getClients } from "@/services/localStorage";
 
 const Clients = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [clients, setClients] = useState(mockClients);
+  const [clients, setClients] = useState([]);
+
+  useEffect(() => {
+    // Carica i clienti dal localStorage
+    const storedClients = getClients();
+    setClients(storedClients);
+  }, []);
 
   const filteredClients = clients.filter((client) =>
-    client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    client.phone.includes(searchQuery)
+    client.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    client.phone?.includes(searchQuery)
   );
 
   return (

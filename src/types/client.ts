@@ -9,4 +9,12 @@ export interface Client {
   totalVisits: number;
   lastVisit: string;
   preferences?: string[];
+  gallery?: ClientPhoto[];
+}
+
+export interface ClientPhoto {
+  id: string;
+  imageUrl: string;
+  appointmentId: string;
+  date: string;
 }

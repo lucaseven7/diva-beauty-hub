@@ -4,32 +4,98 @@ import Layout from "@/components/Layout";
 import { StatsCard } from "@/components/StatsCard";
 import { AppointmentCard } from "@/components/AppointmentCard";
 import { Button } from "@/components/ui/button";
-import { Calendar, Euro, Users } from "lucide-react";
-import { mockAppointments, mockMonthlyStats } from "@/data/mockData";
-import { format } from "date-fns";
+import { Calendar, Euro } from "lucide-react";
+import { format, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
-import { BarChart, Bar, XAxis, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { getAppointments, getClients } from "@/services/localStorage";
+import { Card } from "@/components/ui/card";
 
 const Index = () => {
   const [todayAppointments, setTodayAppointments] = useState([]);
+  const [monthlyStats, setMonthlyStats] = useState({
+    appointments: 0,
+    revenue: 0
+  });
+  const [revenueData, setRevenueData] = useState([]);
   const today = new Date();
   const formattedDate = format(today, "EEEE, d MMMM", { locale: it });
 
   useEffect(() => {
-    // Filter appointments for today
-    const todaysAppts = mockAppointments.filter(
+    // Carica gli appointments dal localStorage
+    const allAppointments = getAppointments();
+    
+    // Filtra gli appuntamenti per oggi
+    const todaysAppts = allAppointments.filter(
       (appt) => appt.date === format(today, "yyyy-MM-dd") && appt.status === "scheduled"
     );
     setTodayAppointments(todaysAppts);
+    
+    // Calcola le statistiche del mese corrente
+    const firstDayOfMonth = startOfMonth(today);
+    const lastDayOfMonth = endOfMonth(today);
+    
+    // Filtra gli appuntamenti del mese corrente
+    const currentMonthAppointments = allAppointments.filter(appt => {
+      const apptDate = new Date(appt.date);
+      return isWithinInterval(apptDate, { start: firstDayOfMonth, end: lastDayOfMonth });
+    });
+    
+    // Calcola le statistiche
+    const totalRevenue = currentMonthAppointments
+      .filter(appt => appt.status === "completed")
+      .reduce((sum, appt) => sum + (appt.price || 0), 0);
+    const totalAppointments = currentMonthAppointments.length;
+    
+    setMonthlyStats({
+      appointments: totalAppointments,
+      revenue: totalRevenue
+    });
+    
+    // Prepara i dati per il grafico delle entrate mensili
+    prepareChartData(allAppointments);
   }, []);
+
+  const prepareChartData = (appointments) => {
+    // Prepara i dati per il grafico delle entrate mensili
+    const monthlyRevenue = {};
+    
+    // Inizializza gli ultimi 4 mesi
+    const now = new Date();
+    for (let i = 3; i >= 0; i--) {
+      const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthName = format(month, 'MMM', { locale: it });
+      monthlyRevenue[monthName] = 0;
+    }
+    
+    // Calcola le entrate per ogni mese
+    appointments.forEach(appt => {
+      if (!appt.date) return;
+      
+      const apptDate = new Date(appt.date);
+      const monthName = format(apptDate, 'MMM', { locale: it });
+      
+      if (monthlyRevenue[monthName] !== undefined && appt.status === 'completed') {
+        monthlyRevenue[monthName] += (appt.price || 0);
+      }
+    });
+    
+    // Converti in formato per il grafico
+    const revenueChartData = Object.keys(monthlyRevenue).map(month => ({
+      name: month,
+      value: monthlyRevenue[month]
+    }));
+    
+    setRevenueData(revenueChartData);
+  };
 
   return (
     <Layout>
       <div className="space-y-6 animate-fade-in">
         <div>
           <h2 className="text-2xl font-semibold font-playfair">
-            Buongiorno, Beautician!
+            Nails.by.bae
           </h2>
           <p className="text-muted-foreground mt-1 capitalize">{formattedDate}</p>
         </div>
@@ -37,31 +103,37 @@ const Index = () => {
         <div className="grid grid-cols-2 gap-4">
           <StatsCard
             title="Appuntamenti del mese"
-            value={mockMonthlyStats.currentMonth.appointments}
+            value={monthlyStats.appointments}
             icon={<Calendar className="h-4 w-4 text-beauty-purple" />}
-            trend={{ value: 13, isPositive: true }}
+            trend={null}
           />
           <StatsCard
             title="Entrate del mese"
-            value={`${mockMonthlyStats.currentMonth.revenue}€`}
+            value={`${monthlyStats.revenue}€`}
             icon={<Euro className="h-4 w-4 text-beauty-purple" />}
-            trend={{ value: 18, isPositive: true }}
+            trend={null}
           />
         </div>
 
-        <div className="beauty-card space-y-2">
-          <div className="flex justify-between items-center">
-            <h3 className="font-semibold text-lg">Entrate mensili</h3>
-          </div>
-          <div className="h-40">
+        {/* Grafico delle entrate mensili */}
+        <Card className="p-4">
+          <h3 className="font-medium mb-4">Entrate mensili</h3>
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mockMonthlyStats.revenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <BarChart
+                data={revenueData}
+                margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+              >
                 <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                <Tooltip 
+                  formatter={(value) => [`${value}€`, "Entrate"]} 
+                  contentStyle={{ backgroundColor: 'white', borderRadius: '8px' }}
+                />
                 <Bar dataKey="value" fill="#9b87f5" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </Card>
 
         <div>
           <div className="flex justify-between items-center mb-4">
