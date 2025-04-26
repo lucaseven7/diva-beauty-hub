@@ -1,11 +1,8 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
-const BottomNavigation = () => {
-  const location = useLocation();
-  const path = location.pathname;
 
-  const isNewAppointmentPage = path === "/appointments/new";
+
   import { useEffect } from "react";
 import { Home, Calendar, Users, Image, BarChart3 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -13,7 +10,7 @@ import { Link, useLocation } from "react-router-dom";
 const BottomNavigation = () => {
   const location = useLocation();
   const path = location.pathname;
-
+const isNewAppointmentPage = path === "/appointments/new";
   const navItems = [
     { name: "Home", path: "/", icon: Home },
     { name: "Appuntamenti", path: "/appointments", icon: Calendar },
