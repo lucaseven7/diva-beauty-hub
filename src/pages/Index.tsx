@@ -92,7 +92,8 @@ const Index = () => {
 
   return (
     <Layout>
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6 animate-fade-in pb-20">
+        {/* Il padding-bottom (pb-20) aggiunge spazio sotto l'ultimo elemento per evitare che venga nascosto dalla barra di navigazione */}
         <div>
           <h2 className="text-2xl font-semibold font-playfair">
             Nails.by.bae
@@ -166,7 +167,8 @@ const Index = () => {
           )}
         </div>
         
-        <Link to="/appointments/new" className="fixed bottom-20 right-4 z-40">
+        {/* Assicurati che il pulsante di nuovo appuntamento abbia un z-index più alto della barra di navigazione */}
+        <Link to="/appointments/new" className="fixed bottom-20 right-4 z-50">
           <Button size="lg" className="rounded-full h-14 w-14 bg-beauty-purple hover:bg-beauty-purple/90 shadow-lg">
             <span className="text-xl font-bold">+</span>
           </Button>
